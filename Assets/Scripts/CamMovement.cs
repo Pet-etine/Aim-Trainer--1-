@@ -14,9 +14,9 @@ public class CamMovement : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-       Cursor.lockState = CursorLockMode.Locked;
-       Cursor.visible = false;
-        
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
     }
 
     // Update is called once per frame
@@ -25,7 +25,7 @@ public class CamMovement : MonoBehaviour
 
         float mouseX = Input.GetAxisRaw("Mouse X") * Time.deltaTime * sensX;
         float mouseY = Input.GetAxisRaw("Mouse Y") * Time.deltaTime * sensY;
-        
+
         yRotation += mouseX;
         xRotation -= mouseY;
 
@@ -33,5 +33,10 @@ public class CamMovement : MonoBehaviour
 
         transform.rotation = Quaternion.Euler(xRotation, yRotation, 0);
         orientation.rotation = Quaternion.Euler(0, yRotation, 0);
+        if (Input.GetKeyDown(KeyCode.Escape)) // Press Esc to unlock cursor
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
     }
 }

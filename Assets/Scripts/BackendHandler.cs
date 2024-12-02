@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.EventSystems;
 
 
 public class BackendHandler : MonoBehaviour
@@ -12,8 +13,9 @@ public class BackendHandler : MonoBehaviour
     "{\"id\":2, \"playername\":\"Hankka\", \"score\":30, \"playtime\": \"2020-21-11 08:20:00\"}, " +
     "{\"id\":3, \"playername\":\"Ismo\", \"score\":40, \"playtime\": \"2020-21-11 08:20:00\"} " +
     "] }";
-    const string urlBackendHighScoresFile = "http://localhost/Unity-PHP-Demo-Backend/Source%20Files/api/v1/highscores.json";
+    const string urlBackendHighScoresFile = "http://localhost/Unity-PHP-Demo-Backend/api/v1/highscores.json";
     //highscore table
+    const string urlBackendHighScores = "http://localhost/Unity-PHP-Demo-Backend/api/v1/highscores.php";
     HighScores.HighScores hs;
 
     //Logging info
@@ -39,26 +41,32 @@ public class BackendHandler : MonoBehaviour
     {
         loggingText.text = log;
     }
-
     public void FetchHighScoresJSONFile()
     {
+        fetchCounter++;
         Debug.Log("FetchHighScoresJSONFile button clicked");
         StartCoroutine(GetRequestForHighScoresFile(urlBackendHighScoresFile));
+        EventSystem.current.SetSelectedGameObject(null);
     }
 
     public void FetchHighScoresJSON()
     {
+        fetchCounter++;
         Debug.Log("FetchHighScoresJSON button clicked");
+        StartCoroutine(GetRequest(urlBackendHighScores));
+        EventSystem.current.SetSelectedGameObject(null);
     }
+
     string InsertToLog(string s)
     {
         return log = "[" + fetchCounter + "]" + s + "\n" + log;
     }
+    // Make sure this coroutine is defined
     IEnumerator GetRequestForHighScoresFile(string uri)
     {
         using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
         {
-            InsertToLog("[" + fetchCounter + "] Request sent to " + uri);
+            InsertToLog(" Request sent to " + uri);
             // set downloadHandler for json
             webRequest.downloadHandler = new DownloadHandlerBuffer();
             webRequest.SetRequestHeader("Content-Type", "application/json");
@@ -66,7 +74,8 @@ public class BackendHandler : MonoBehaviour
             // Request and wait for reply
             yield return webRequest.SendWebRequest();
 
-            if (webRequest.isNetworkError)
+            // Updated condition to check for connection errors
+            if (webRequest.result == UnityWebRequest.Result.ConnectionError)
             {
                 InsertToLog("Error encountered: " + webRequest.error);
                 Debug.Log("Error: " + webRequest.error);
@@ -83,5 +92,30 @@ public class BackendHandler : MonoBehaviour
             }
         }
     }
+    IEnumerator GetRequest(string uri)
+    {
+        using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
+        {
+            InsertToLog("Request sent to " + uri);
+            webRequest.downloadHandler = new DownloadHandlerBuffer();
+            webRequest.SetRequestHeader("Content-Type", "application/json");
+            webRequest.SetRequestHeader("Accept", "application/json");
 
+            yield return webRequest.SendWebRequest();
+
+            if (webRequest.result == UnityWebRequest.Result.ConnectionError || webRequest.result == UnityWebRequest.Result.ProtocolError)
+            {
+                InsertToLog("Error encountered: " + webRequest.error);
+                Debug.Log("Error: " + webRequest.error);
+            }
+            else
+            {
+                string resultStr = System.Text.Encoding.UTF8.GetString(webRequest.downloadHandler.data);
+                hs = JsonUtility.FromJson<HighScores.HighScores>(resultStr);
+                InsertToLog("Response received successfully");
+                Debug.Log("Received(UTF8): " + resultStr);
+                Debug.Log("Received(HS): " + JsonUtility.ToJson(hs));
+            }
+        }
+    }
 }

@@ -7,14 +7,14 @@ using UnityEngine;
 public class Target : MonoBehaviour
 {
     public int health;
-    private float timeElapsed;
+    //private float timeElapsed;
 
     // Start is called before the first frame update
     void Start()
     {
-        timeElapsed = 0f;
+        //timeElapsed = 0f;
         StartCoroutine(nameof(checkStatus));
-        StartCoroutine(nameof(timer));
+        StartCoroutine(nameof(selfDestruct));
     }
 
     // Update is called once per frame
@@ -31,14 +31,9 @@ public class Target : MonoBehaviour
 
         }
     }
-    IEnumerator timer(){
-        float interval = 0.1f; // 100ms interval
-        while(true) {
-            if(timeElapsed == 3f){
-                Destroy(gameObject);
-            }
-            yield return new WaitForSeconds(interval);
-            timeElapsed += interval;
+    IEnumerator selfDestruct(){
+            yield return new WaitForSeconds(7f); // destroy target after 7 sec.
+            Destroy(gameObject);
         }
     }
-}
+
