@@ -2,101 +2,113 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
-using UnityEngine.EventSystems;
-
+using TMPro;
+using System;
+using System.Text;
 
 public class BackendHandler : MonoBehaviour
 {
-    const string jsonTestStr = "{ " +
-    "\"scores\":[ " +
-    "{\"id\":1, \"playername\":\"Matti\", \"score\":20, \"playtime\": \"2020-21-11 08:20:00\"}, " +
-    "{\"id\":2, \"playername\":\"Hankka\", \"score\":30, \"playtime\": \"2020-21-11 08:20:00\"}, " +
-    "{\"id\":3, \"playername\":\"Ismo\", \"score\":40, \"playtime\": \"2020-21-11 08:20:00\"} " +
-    "] }";
-    const string urlBackendHighScoresFile = "http://localhost/Unity-PHP-Demo-Backend/api/v1/highscores.json";
-    //highscore table
+    // UI Elements
+    public TMP_Text playername;
+    public TMP_Text hits;
+    public TMP_Text acc;
+    public TMP_Text playtime;
+    public TMP_Text highscoreText;
+
+    bool updateHighScoreTextArea = false;
     const string urlBackendHighScores = "http://localhost/Unity-PHP-Demo-Backend/api/v1/highscores.php";
+
     HighScores.HighScores hs;
 
-    //Logging info
-    string log = "";
-    int fetchCounter = 0;
-
-    //UI Elements
-    public UnityEngine.UI.Text loggingText;
     void Start()
     {
-        Debug.Log("BackendHandler started.");
-
-        //testing json conversion
-        hs = JsonUtility.FromJson<HighScores.HighScores>(jsonTestStr);
-        Debug.Log("HighScore winner name:" + hs.scores[0].playername);
-        Debug.Log("HighScores as json:" + JsonUtility.ToJson(hs));
-
-        InsertToLog("Game started."); // Call the method with the correct name
+        Debug.Log("BackendHandler started");
+        StartCoroutine(GetRequestForHighScores());
     }
 
-    // Update is called once per frame
     void Update()
     {
-        loggingText.text = log;
-    }
-    public void FetchHighScoresJSONFile()
-    {
-        fetchCounter++;
-        Debug.Log("FetchHighScoresJSONFile button clicked");
-        StartCoroutine(GetRequestForHighScoresFile(urlBackendHighScoresFile));
-        EventSystem.current.SetSelectedGameObject(null);
-    }
-
-    public void FetchHighScoresJSON()
-    {
-        fetchCounter++;
-        Debug.Log("FetchHighScoresJSON button clicked");
-        StartCoroutine(GetRequest(urlBackendHighScores));
-        EventSystem.current.SetSelectedGameObject(null);
-    }
-
-    string InsertToLog(string s)
-    {
-        return log = "[" + fetchCounter + "]" + s + "\n" + log;
-    }
-    // Make sure this coroutine is defined
-    IEnumerator GetRequestForHighScoresFile(string uri)
-    {
-        using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
+        if (updateHighScoreTextArea)
         {
-            InsertToLog(" Request sent to " + uri);
-            // set downloadHandler for json
-            webRequest.downloadHandler = new DownloadHandlerBuffer();
-            webRequest.SetRequestHeader("Content-Type", "application/json");
-            webRequest.SetRequestHeader("Accept", "application/json");
-            // Request and wait for reply
-            yield return webRequest.SendWebRequest();
+            highscoreText.text = DisplayHighScores(hs);
+            updateHighScoreTextArea = false;
+        }
+    }
 
-            // Updated condition to check for connection errors
-            if (webRequest.result == UnityWebRequest.Result.ConnectionError)
+    string DisplayHighScores(HighScores.HighScores highScores)
+    {
+        if (highScores == null || highScores.scores.Length == 0)
+        {
+            return "No high scores available.";
+        }
+
+        string displayText = "Highscores:\n";
+        foreach (var score in highScores.scores)
+        {
+            displayText += $"Player: {score.playername}\n";
+            displayText += $"Hits: {score.hits}\n";
+            displayText += $"Accuracy: {score.accuracy}%\n";
+            displayText += $"Playtime: {score.playtime} minutes\n";
+            displayText += "----------------------------\n";
+        }
+
+        return displayText;
+    }
+
+    public void PostGameResults()
+    {
+        Debug.Log($"Sending Results: Playername: {playername.text}, Hits: {hits.text}, Accuracy: {acc.text}, Playtime: {playtime.text}");
+
+        StartCoroutine(SendPostRequest());
+    }
+
+    private IEnumerator SendPostRequest()
+    {
+        // Create a new GameResult object with the player's data
+        GameResult result = new GameResult(playername.text, hits.text, acc.text, playtime.text);
+
+        // Serialize it to JSON
+        string json = JsonUtility.ToJson(result);
+
+        // Log the JSON being sent for debugging
+        Debug.Log($"Sending Post Data: {json}");
+
+        // Create a UnityWebRequest with the appropriate headers for JSON
+        using (UnityWebRequest www = new UnityWebRequest(urlBackendHighScores, "POST"))
+        {
+            // Set request header to indicate that we're sending JSON
+            www.SetRequestHeader("Content-Type", "application/json");
+
+            // Convert the JSON string to a byte array and set it as the request body
+            byte[] jsonToSend = Encoding.UTF8.GetBytes(json);
+            www.uploadHandler = new UploadHandlerRaw(jsonToSend);
+            www.downloadHandler = new DownloadHandlerBuffer();
+
+            // Send the request and wait for it to finish
+            yield return www.SendWebRequest();
+
+            // Handle the response
+            if (www.result == UnityWebRequest.Result.Success)
             {
-                InsertToLog("Error encountered: " + webRequest.error);
-                Debug.Log("Error: " + webRequest.error);
+                Debug.Log("Post Success: " + www.downloadHandler.text);
             }
             else
             {
-                // get raw data and convert it to string
-                string resultStr = System.Text.Encoding.UTF8.GetString(webRequest.downloadHandler.data);
-                // create HighScore item from json string
-                hs = JsonUtility.FromJson<HighScores.HighScores>(resultStr);
-                InsertToLog("Response received succesfully ");
-                Debug.Log("Received(UTF8): " + resultStr);
-                Debug.Log("Received(HS): " + JsonUtility.ToJson(hs));
+                Debug.LogError("Post Error: " + www.error);
             }
         }
     }
-    IEnumerator GetRequest(string uri)
+
+
+
+
+
+
+
+    private IEnumerator GetRequestForHighScores()
     {
-        using (UnityWebRequest webRequest = UnityWebRequest.Get(uri))
+        using (UnityWebRequest webRequest = UnityWebRequest.Get(urlBackendHighScores))
         {
-            InsertToLog("Request sent to " + uri);
             webRequest.downloadHandler = new DownloadHandlerBuffer();
             webRequest.SetRequestHeader("Content-Type", "application/json");
             webRequest.SetRequestHeader("Accept", "application/json");
@@ -105,17 +117,51 @@ public class BackendHandler : MonoBehaviour
 
             if (webRequest.result == UnityWebRequest.Result.ConnectionError || webRequest.result == UnityWebRequest.Result.ProtocolError)
             {
-                InsertToLog("Error encountered: " + webRequest.error);
-                Debug.Log("Error: " + webRequest.error);
+                Debug.LogError("Error: " + webRequest.error);
             }
             else
             {
-                string resultStr = System.Text.Encoding.UTF8.GetString(webRequest.downloadHandler.data);
-                hs = JsonUtility.FromJson<HighScores.HighScores>(resultStr);
-                InsertToLog("Response received successfully");
-                Debug.Log("Received(UTF8): " + resultStr);
-                Debug.Log("Received(HS): " + JsonUtility.ToJson(hs));
+                byte[] data = webRequest.downloadHandler.data;
+
+                // Check if data is not null or empty
+                if (data != null && data.Length > 0)
+                {
+                    string resultStr = System.Text.Encoding.UTF8.GetString(data);
+
+                    try
+                    {
+                        HighScores.HighScores hs = JsonUtility.FromJson<HighScores.HighScores>(resultStr);
+                        updateHighScoreTextArea = true;
+                        Debug.Log("Received: " + resultStr);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError("JSON Parse Error: " + e.Message);
+                    }
+                }
+                else
+                {
+                    Debug.LogError("Received empty or null response.");
+                }
             }
         }
+    }
+
+}
+
+[System.Serializable]
+public class GameResult
+{
+    public string playername;
+    public string hits;
+    public string accuracy;
+    public string playtime;
+
+    public GameResult(string playername, string hits, string accuracy, string playtime)
+    {
+        this.playername = playername;
+        this.hits = hits;
+        this.accuracy = accuracy;
+        this.playtime = playtime;
     }
 }
